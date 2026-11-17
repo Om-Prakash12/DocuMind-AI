@@ -148,6 +148,40 @@ class VectorStore:
         )
 
         return result.count
+    
+    def get_all_documents(self, page_size: int = 100) -> list[dict]:
+        """
+        Retrieve all stored document payloads from Qdrant.
+        Uses pagination to handle larger collections.
+        """
+
+        if page_size <= 0:
+            raise ValueError("Page size must be greater than zero.")
+
+        documents = []
+        offset = None
+
+        while True:
+            points, next_offset = self.client.scroll(
+                collection_name=self.collection_name,
+                limit=page_size,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False
+            )
+
+            for point in points:
+                documents.append({
+                    "qdrant_id": str(point.id),
+                    **(point.payload or {})
+                })
+
+            if next_offset is None:
+                break
+
+            offset = next_offset
+
+        return documents
 
     def close(self):
         """Close the local Qdrant client."""

@@ -104,3 +104,35 @@ def test_invalid_search_limit(vector_store):
             query_vector=[1.0] + [0.0] * 383,
             limit=0
         )
+
+def test_get_all_documents(vector_store):
+    chunks = [
+        {
+            "chunk_id": "chunk-1",
+            "text": "Python programming",
+            "embedding": [1.0] + [0.0] * 383
+        },
+        {
+            "chunk_id": "chunk-2",
+            "text": "Artificial intelligence",
+            "embedding": [0.0, 1.0] + [0.0] * 382
+        }
+    ]
+
+    vector_store.add_documents(chunks)
+
+    documents = vector_store.get_all_documents()
+
+    assert len(documents) == 2
+    assert {doc["chunk_id"] for doc in documents} == {
+        "chunk-1", "chunk-2"
+    }
+
+
+def test_get_all_documents_empty(vector_store):
+    assert vector_store.get_all_documents() == []
+
+
+def test_invalid_page_size(vector_store):
+    with pytest.raises(ValueError):
+        vector_store.get_all_documents(page_size=0)
