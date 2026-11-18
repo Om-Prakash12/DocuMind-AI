@@ -37,18 +37,35 @@ class InformationExtractionService:
             raise ValueError("Every field must be a non-empty string.")
 
         query = f"""
-Extract the following fields from the document:
+You are an accurate information extraction assistant.
 
+Extract the requested fields from the provided document.
+
+Requested fields:
 {json.dumps(fields)}
 
-Return ONLY a valid JSON object.
+Instructions:
+1. Read the entire document carefully before extracting information.
+2. Interpret field names by their meaning, not only by exact word matches.
+3. Identify information expressed using equivalent words or phrases.
+4. Extract all relevant information when multiple values are available.
+5. Use only evidence explicitly supported by the document.
+6. Never invent, assume, or guess information.
+7. Return null only when the document genuinely does not contain the requested information.
+8. Preserve names, dates, numbers, and technical terms accurately.
+9. Return values as concise strings unless a list is more appropriate.
+10. Return ONLY a valid JSON object containing every requested field.
+11. Do not include Markdown code fences or explanations.
 
-Rules:
-1. Use only information present in the document.
-2. Never invent missing values.
-3. Use null when a field is not available.
-4. Preserve names, dates and numbers accurately.
-5. Do not include Markdown code fences.
+Example:
+If the document says:
+"Python is widely used in artificial intelligence and machine learning."
+
+And the requested field is:
+"main_applications"
+
+Extract:
+"main_applications": "Artificial Intelligence and Machine Learning"
 """
 
         

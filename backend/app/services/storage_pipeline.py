@@ -25,7 +25,8 @@ class DocumentStoragePipeline:
         self,
         file_path: str,
         chunk_size: int = 500,
-        chunk_overlap: int = 100
+        chunk_overlap: int = 100,
+        display_filename: str | None = None
     ) -> dict:
 
         # Step 1: Process document and generate embeddings
@@ -35,14 +36,19 @@ class DocumentStoragePipeline:
             chunk_overlap=chunk_overlap
         )
 
-        # Step 2: Store embedded chunks in Qdrant
+        # Step 2: Preserve the original uploaded filename
+        if display_filename:
+            for chunk in document["embedded_chunks"]:
+                chunk["document_filename"] = display_filename
+
+        # Step 3: Store embedded chunks in Qdrant
         stored_count = self.vector_store.add_documents(
             document["embedded_chunks"]
         )
 
-        # Step 3: Return ingestion summary
+        # Step 4: Return ingestion summary
         return {
-            "filename": document["filename"],
+            "filename": display_filename or document["filename"],
             "file_type": document["file_type"],
             "total_chunks": document["total_chunks"],
             "stored_vectors": stored_count,
