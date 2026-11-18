@@ -3,12 +3,12 @@ from backend.app.services.embedding_service import EmbeddingService
 from backend.app.services.vector_store import VectorStore
 from backend.app.services.keyword_search import KeywordSearchService
 from backend.app.services.ranking_service import ReciprocalRankFusion
+from backend.app.services.reranking_service import RerankingService
 
 
 class HybridSearchService:
     """
-    Combine semantic search and BM25 keyword search
-    using Reciprocal Rank Fusion.
+    Combine semantic search, BM25, RRF and Cross-Encoder reranking.
     """
 
     def __init__(
@@ -23,6 +23,7 @@ class HybridSearchService:
 
         self.keyword_service = KeywordSearchService()
         self.ranking_service = ReciprocalRankFusion(k=60)
+        self.reranking_service = RerankingService()
 
     def search(
         self,
@@ -47,7 +48,6 @@ class HybridSearchService:
             if not document_filename.strip():
                 raise ValueError("Document filename cannot be empty.")
 
-        # Retrieve additional candidates before fusion
         candidate_limit = max(limit * 3, 10)
 
         # 1. Semantic search
@@ -64,7 +64,7 @@ class HybridSearchService:
             for result in semantic_results
         ]
 
-        # 2. Retrieve documents for BM25 indexing
+        # 2. Retrieve documents for BM25
         documents = self.vector_store.get_all_documents()
 
         if document_filename is not None:
@@ -85,20 +85,46 @@ class HybridSearchService:
         fused_results = self.ranking_service.fuse(
             semantic_ranked,
             keyword_results,
-            limit=limit
+            limit=candidate_limit
         )
 
-        # 5. Return standardized search results
+        # 5. Prepare candidates for Cross-Encoder
+        candidates = []
+
+        for result in fused_results:
+            document = result["document"]
+
+            candidates.append({
+                "rank": result["rank"],
+                "chunk_id": document.get("chunk_id"),
+                "document": document.get("document_filename"),
+                "text": document.get("text", ""),
+                "rrf_score": result["score"],
+                "sources": document.get("sources", [])
+            })
+
+        # 6. Rerank candidates using Cross-Encoder
+        reranked_results = self.reranking_service.rerank(
+            query=query,
+            documents=candidates,
+            top_k=limit
+        )
+
+        # 7. Return final ranked results
         return [
             {
-                "rank": result["rank"],
-                "chunk_id": result["document"].get("chunk_id"),
-                "document": result["document"].get("document_filename"),
-                "text": result["document"].get("text", ""),
-                "score": result["score"],
-                "sources": result["document"].get("sources", [])
+                **{
+                    key: value
+                    for key, value in result.items()
+                    if key != "rerank_score"
+                },
+                "rank": index,
+                "score": result["rerank_score"]
             }
-            for result in fused_results
+            for index, result in enumerate(
+                reranked_results,
+                start=1
+            )
         ]
 
     def close(self):
